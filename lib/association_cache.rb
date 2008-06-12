@@ -43,8 +43,8 @@ module ActiveRecord
       else
         add_multiple_associated_save_callbacks(reflection.name)
         add_association_callbacks(reflection.name, reflection.options)
-        collection_accessor_methods(reflection, 
-          cached ? ActiveRecord::Associations::CachedHasManyAssociation : 
+        collection_accessor_methods(reflection,
+          cached ? ActiveRecord::Associations::CachedHasManyAssociation :
                       ActiveRecord::Associations::HasManyAssociation)
       end
     end
@@ -55,7 +55,7 @@ ActiveRecord::Base.class_eval do
   extend ActiveRecord::AssociationCache
 end
 
-class ActiveRecord::Base 
+class ActiveRecord::Base
   def cache_key
     "#{self.class.name}::#{self.id}"
   end
@@ -93,33 +93,62 @@ module ActiveRecord
           end
 
           merge_options_from_reflection!(options)
-          
+
           # Go after ONLY the ids
           options = options.merge(:select => "#{@reflection.table_name}.id")
-          
+
           # Pass through args exactly as we received them.
           args << options
-          ids = @reflection.klass.find(*args).map(&:id)
+          
+          unless options[:join]
+            # Doing it this way will cause complex joins to break, 
+            # but its way faster then the else condition.
+            ids = select_ids(options).map { |row| row["id"].to_i }
+          else
+            # More robust, but slower cause full active records objects
+            # are instanciated.
+            ids = @reflection.klass.find(*args).map(&:id)
+          end
 
           cache_keys = ids.map { |id| "#{@reflection.klass.name}::#{id}" }
           records = Cache.get_multiple(cache_keys)
           record_ids = records.map(&:id)
-          
+
           missing_record_ids = ids.select { |id| !record_ids.include?(id) }
-          
-          missing_records = @reflection.klass.find(:all, 
-            :conditions => ['id in (?)', missing_record_ids])          
-          
+
+          missing_records = @reflection.klass.find(:all,
+            :conditions => ['id in (?)', missing_record_ids])
+
           missing_records.each do |record|
             Cache.put(record.cache_key, record)
           end
-          
+
           records.concat(missing_records)
-          
-          # Slow sort method. Use a hash for more goodness          
+
+          # Slow sort method. Use a hash for more goodness
           ids.collect { |id| records.detect { |r| r.id == id } }
         end
       end
+      
+      def select_ids(options)
+        connection.select_all(
+          construct_finder_sql_for_ids(options), "#{name} Loading ids")
+      end
+      
+      def construct_finder_sql_for_ids(options)
+        scope = scope(:find)
+        sql = "SELECT #{quoted_table_name}.id FROM #{(scope && scope[:from]) || options[:from] || quoted_table_name} "
+
+        add_joins!(sql, options, scope)
+        add_conditions!(sql, options[:conditions], scope)
+
+        add_group!(sql, options[:group], scope)
+        add_order!(sql, options[:order], scope)
+        add_lock!(sql, options, scope)
+
+        return sanitize_sql(sql)
+      end 
+           
     end
   end
 end
