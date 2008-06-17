@@ -1,13 +1,22 @@
 AssociationCache
 ================
 
-Introduction goes here.
+Caches "some" active record associations.
 
+For a belongs_to the object is looked up directly using the cache_key. If not found
+then a find() is done and the object is put in the cache and returned.
+
+Collections are turned into queries just for the ids and then if the objects are in the 
+cache they are returned and if not they are fetched and added to the cache.
 
 Example
 =======
 
-Example goes here.
+belongs_to :cow, :cached => true
+
+has_many :chickens, :cached => true
+
+has_and_belongs_to_many :farmers, :cached => true
 
 
-Copyright (c) 2008 [name of plugin creator], released under the MIT license
+Copyright (c) 2008 [Charlie Morss], released under the MIT license

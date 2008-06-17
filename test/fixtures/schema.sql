@@ -22,7 +22,7 @@ CREATE TABLE 'projects' (
   'name' TEXT DEFAULT NULL
 );
 
-CREATE TABLE 'users_projects' (
+CREATE TABLE 'projects_users' (
   'user_id' INTEGER NOT NULL,
   'project_id' INTEGER NOT NULL
 );
